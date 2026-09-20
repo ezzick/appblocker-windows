@@ -1,0 +1,67 @@
+# ==============================================================================
+# AppBlocker — .gitignore
+# ==============================================================================
+
+# Python & Кэш
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Локальные персональные скрипты и интеграции
+ahk/
+*.lnk
+
+# Внутренние отчеты разработки (агенты)
+.agents/
+
+# Сборка и дистрибутивы (PyInstaller, Nuitka)
+build/
+dist/
+*.build/
+*.dist/
+*.spec
+
+# Локальные бинарники и тяжелые архивы
+*.exe
+*.zip
+*.7z
+*.rar
+*.tar.gz
+
+# Логи и отладочные файлы
+logs/
+*.log
+tests/test_run.log
+
+# Локальные пользовательские данные и конфиги (основные хранятся в %APPDATA%)
+data/
+config.json
+session_state.json
+
+# Тестовые артефакты
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Системные файлы ОС
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
