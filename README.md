@@ -23,7 +23,7 @@
 |---|---|
 | [Скачать AppBlocker v2.1 (exe)](dist/AppBlocker_v2.1.exe) | [Исходный код (Python)](src/) |
 
-> **Релизы:** Все версии также доступны на странице [Releases](https://github.com/ezzick/AppBlocker/releases) — там можно скачать любую сборку и посмотреть changelog.
+> **Релизы:** Все версии также доступны на странице [Releases](https://github.com/ezzick/appblocker-windows/releases) — там можно скачать любую сборку и посмотреть changelog.
 
 ---
 
@@ -35,7 +35,7 @@
 
 ### Для разработчиков
 ```bash
-git clone https://github.com/ezzick/AppBlocker.git
+git clone https://github.com/ezzick/appblocker-windows.git
 cd AppBlocker
 python src/AppBlocker.pyw
 ```
