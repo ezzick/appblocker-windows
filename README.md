@@ -153,15 +153,105 @@ python src/AppBlocker.pyw
 
 ---
 
+## 🤖 Интеграция с AutoHotkey и CLI (Командная строка)
+
+AppBlocker поддерживает запуск пресетов и кастомных сессий прямо из командной строки, ярлыков или меню **AutoHotkey (AHK)** без необходимости вручную кликать по интерфейсу:
+
+### 1. Запуск пресетов через CLI:
+```bash
+# Автономный .exe (или python src/AppBlocker.pyw):
+AppBlocker.exe --preset chats_work_25_5   # 💬 Рабочие чаты (25 мин работа + 5 мин блок)
+AppBlocker.exe --preset quick_check       # ⚡ Быстрая проверка (5 мин работа + 10 мин блок)
+AppBlocker.exe --preset hard_block_3h     # 🛑 Блокировка на 3 часа
+AppBlocker.exe --preset deep_focus_50     # 🎯 50 мин фокуса без отвлечений
+AppBlocker.exe --preset no_ai_50_10       # 🧠 Гигиена работы с ИИ (50 мин работа + 10 мин блок)
+```
+
+### 2. Запуск с произвольным временем:
+```bash
+# Работа 25 минут, затем блокировка на 5 минут для правил telegram и distractions
+AppBlocker.exe --allow_min 25 --block_min 5 --rules telegram,distractions --do_alert
+
+# Немедленная блокировка на 180 минут (3 часа):
+AppBlocker.exe --block_min 180 --rules telegram
+
+# Совместимый короткий синтаксис (позиционный аргумент в минутах):
+AppBlocker.exe 180
+```
+
+### 3. Готовый шаблон для AutoHotkey v2 (`ezzick_Menu_v2.ahk`):
+```autohotkey
+global AppBlockerDir := "C:\D\Projects Active\Python\AppBlocker"
+
+; Универсальная функция запуска AppBlocker (.exe или .pyw)
+RunAppBlocker(params := "") {
+    exePath := AppBlockerDir "\dist\AppBlocker_v2.1.exe"
+    if !FileExist(exePath)
+        exePath := AppBlockerDir "\AppBlocker.exe"
+
+    if FileExist(exePath) {
+        if (params != "")
+            Run('"' exePath '" ' params, AppBlockerDir)
+        else
+            Run('"' exePath '"', AppBlockerDir)
+    } else {
+        pywPath := AppBlockerDir "\src\AppBlocker.pyw"
+        if !FileExist(pywPath)
+            pywPath := AppBlockerDir "\AppBlocker.pyw"
+        if FileExist(pywPath) {
+            if (params != "")
+                Run('"' pywPath '" ' params, AppBlockerDir)
+            else
+                Run('"' pywPath '"', AppBlockerDir)
+        }
+    }
+}
+
+; Обработчики меню:
+cTelegram(ItemName, ItemPos, MyMenu) {
+    RunApp(TelegramExe)
+    kbd_ShowToolTip("Telegram will work 25 min., then block for 05 min.")
+    RunAppBlocker("--preset chats_work_25_5")
+}
+
+cTelegram_05(ItemName, ItemPos, MyMenu) {
+    RunApp(TelegramExe)
+    kbd_ShowToolTip("Telegram will work 05 min., then block for 10 min.")
+    RunAppBlocker("--preset quick_check")
+}
+
+cTelegramBlock(ItemName, ItemPos, MyMenu) {
+    kbd_ShowToolTip("Telegram will block for 3 hours")
+    RunAppBlocker("--preset hard_block_3h")
+}
+
+cFocusNoDistractions(ItemName, ItemPos, MyMenu) {
+    kbd_ShowToolTip("Focus: 50 min without distractions")
+    RunAppBlocker("--preset deep_focus_50")
+}
+```
+
+---
+
 ## 📁 Структура проекта
 
 ```
 AppBlocker/
-├── src/                         # Исходный код
-│   ├── AppBlocker.pyw           # Главная точка входа GUI (без консоли через pythonw)
+├── AppBlocker.exe               # Основной исполняемый файл (автономный)
+├── AppBlocker.pyw               # Точка запуска Python-скрипта
+├── TelegramBlock_after.pyw      # Скрипт совместимости (N мин работы -> блок)
+├── TelegramBlock_for.pyw        # Скрипт совместимости (немедленный блок)
+├── DistractionsBlock_for.pyw    # Скрипт совместимости (фокус без соцсетей)
+├── build_exe.py                 # Скрипт сборки в автономный .exe через PyInstaller
+├── src/                         # Исходный код приложения
+│   ├── AppBlocker.pyw           # Главная точка входа GUI и CLI
 │   ├── app_gui.py               # Графический интерфейс на Tkinter
 │   ├── config_manager.py        # Управление конфигурацией, правилами, пресетами
 │   └── blocker_utils.py         # Движок Win32 API (ctypes), трей, OSD, сессии
+├── ahk/                         # Готовые AHK-скрипты и обертки
+│   ├── TelegramBlock_after.pyw
+│   ├── TelegramBlock_for.pyw
+│   └── DistractionsBlock_for.pyw
 ├── assets/
 │   └── app_icon.ico             # Фирменная мультиформатная иконка
 ├── images/                      # Скриншоты интерфейса
@@ -175,7 +265,7 @@ AppBlocker/
 │   ├── test_config_manager.py   # Тесты конфигурации и пресетов
 │   ├── test_app_rules.py        # Тесты правил и Fail-Fast логики
 │   └── test_session_controller.py # Тесты контроллера сессий и ассетов
-├── dist/                        # Готовые exe-сборки (релизные версии)
+├── dist/                        # Скомпилированный .exe (PyInstaller)
 │   └── AppBlocker_v2.1.exe
 ├── .gitignore
 ├── LICENSE
@@ -201,4 +291,10 @@ python src/AppBlocker.pyw
 ```bash
 python tests/run_all_tests.py
 ```
+
+### Сборка автономного `.exe` (через PyInstaller):
+```bash
+python build_exe.py
+```
+> Готовый исполняемый файл будет сохранён в `dist/AppBlocker_v2.1.exe` и скопирован в корень проекта.
 

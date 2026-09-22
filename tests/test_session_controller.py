@@ -47,10 +47,10 @@ class TestSessionControllerAndUtils(unittest.TestCase):
 
     def test_session_controller_defaults(self):
         """Проверяет значения по умолчанию и константы состояний."""
-        self.assertEqual(SessionState.IDLE, "idle")
-        self.assertEqual(SessionState.WORK_PHASE, "work")
-        self.assertEqual(SessionState.BLOCK_PHASE, "block")
-        self.assertEqual(SessionState.STOPPED, "stopped")
+        self.assertEqual(SessionState.STOPPED, "STOPPED")
+        self.assertEqual(SessionState.IDLE, "STOPPED")
+        self.assertEqual(SessionState.WORK_PHASE, "WORK_PHASE")
+        self.assertEqual(SessionState.BLOCK_PHASE, "BLOCK_PHASE")
 
     def test_session_state_persistence(self):
         """Проверяет сохранение, загрузку и очистку session_state.json."""

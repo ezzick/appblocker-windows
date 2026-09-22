@@ -1,3 +1,6 @@
+import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 """
 run_all_tests.py - Единый запуск всех автоматических unit-тестов AppBlocker.
 """

@@ -46,11 +46,60 @@ WINDOW_TITLE = "AppBlocker - Управление фокусом"
 _SINGLE_INSTANCE_MUTEX = None
 
 
-def ensure_single_instance():
+def ensure_single_instance(cli_session_args=None):
     global _SINGLE_INSTANCE_MUTEX
 
     _SINGLE_INSTANCE_MUTEX = kernel32.CreateMutexW(None, True, "Local\\AppBlocker_SingleInstance_Mutex_v1")
     if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+        if cli_session_args:
+            try:
+                from blocker_utils import save_session_state, show_osd_notification
+                from config_manager import ConfigManager
+                cfg = ConfigManager()
+                preset_id = getattr(cli_session_args, 'preset', None)
+                allow_m = getattr(cli_session_args, 'allow_min', None)
+                block_m = getattr(cli_session_args, 'block_min', None) or getattr(cli_session_args, 'pos_block_min', None)
+                rule_ids = getattr(cli_session_args, 'rules', None)
+                if rule_ids:
+                    rule_ids = [r.strip() for r in rule_ids.split(",") if r.strip()]
+
+                session_name = "Фокус-сессия (CLI)"
+                if preset_id:
+                    preset = cfg.get_preset_by_id(preset_id)
+                    if preset:
+                        allow_m = preset.allow_min
+                        block_m = preset.block_min
+                        rule_ids = preset.rule_ids
+                        session_name = preset.name
+
+                allow_m = int(allow_m or 0)
+                block_m = int(block_m or 25)
+                rule_ids = rule_ids or [r.id for r in cfg.get_rules() if r.enabled]
+
+                now = time.time()
+                allow_end = now + (allow_m * 60 if allow_m > 0 else 0)
+                block_end = allow_end + (block_m * 60)
+                state_data = {
+                    "session_name": session_name,
+                    "allow_min": allow_m,
+                    "block_min": block_m,
+                    "rule_ids": rule_ids,
+                    "allow_end_time": allow_end,
+                    "block_end_time": block_end,
+                    "do_alert": True,
+                    "target_monitor": cfg.get_setting("target_monitor", "auto"),
+                    "created_at": now
+                }
+                save_session_state(state_data)
+                show_osd_notification(
+                    title="▶ Сессия запущена",
+                    message=f"{session_name}\n{allow_m} мин работа ➔ {block_m} мин фокус",
+                    duration_sec=4.0,
+                    play_sound=True
+                )
+            except Exception as ex:
+                logger.error(f"Error handling CLI session for running instance: {ex}")
+
         msg_id = user32.RegisterWindowMessageW("AppBlocker_Show_Instance")
         HWND_BROADCAST = 0xFFFF
         user32.PostMessageW(HWND_BROADCAST, msg_id, 0, 0)
@@ -693,7 +742,14 @@ class FloatingPillWidget(tk.Toplevel):
 class AppBlockerGUI(tk.Tk):
     """Главное окно приложения AppBlocker."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        start_preset_id: Optional[str] = None,
+        allow_min: Optional[int] = None,
+        block_min: Optional[int] = None,
+        rule_ids: Optional[List[str]] = None,
+        start_minimized: bool = False
+    ):
         super().__init__()
         self.title(WINDOW_TITLE)
         self.minsize(620, 560)
@@ -730,35 +786,57 @@ class AppBlockerGUI(tk.Tk):
 
         # Инициализация нативного системного трея Windows
         self.tray = WindowsTrayIcon(
-            on_click=lambda: self.after(0, self.show_window),
+            on_click=lambda: self.after(0, self._on_instance_signal_or_show),
             on_right_click=lambda: self.after(0, self._show_tray_context_menu),
             tooltip="AppBlocker - Управление фокусом",
             icon_path=self.icon_path if os.path.exists(self.icon_path) else None
         )
         self.tray.start()
 
-        # Проверяем, есть ли активная незавершенная сессия
-        restored = session_controller.restore_if_active(self.cfg.get_app_rules_for_ids)
-        if restored:
-            allow_m = restored.get("allow_min", 0)
-            block_m = restored.get("block_min", 50)
-            r_ids = restored.get("rule_ids", [])
-
+        # Запуск сессии по CLI-параметрам или восстановление сохраненной
+        if start_preset_id:
+            preset = self.cfg.get_preset_by_id(start_preset_id)
+            if preset:
+                self._apply_preset_to_dashboard(preset)
+                self.after(200, self._on_toggle_session)
+        elif block_min is not None:
+            a_m = allow_min if allow_min is not None else 0
+            b_m = block_min
+            r_ids = rule_ids or [r.id for r in self.cfg.get_rules() if r.enabled]
             self.spin_allow.delete(0, tk.END)
-            self.spin_allow.insert(0, str(allow_m))
-
+            self.spin_allow.insert(0, str(a_m))
             self.spin_block.delete(0, tk.END)
-            self.spin_block.insert(0, str(block_m))
-
+            self.spin_block.insert(0, str(b_m))
             for r_id, var in self.dashboard_rule_vars.items():
                 var.set(r_id in r_ids)
-
             self._check_preset_match()
             self._update_summary_label()
+            self.after(200, self._on_toggle_session)
         else:
-            presets = self.cfg.get_presets()
-            if presets:
-                self._apply_preset_to_dashboard(presets[0])
+            restored = session_controller.restore_if_active(self.cfg.get_app_rules_for_ids)
+            if restored:
+                allow_m = restored.get("allow_min", 0)
+                block_m = restored.get("block_min", 50)
+                r_ids = restored.get("rule_ids", [])
+
+                self.spin_allow.delete(0, tk.END)
+                self.spin_allow.insert(0, str(allow_m))
+
+                self.spin_block.delete(0, tk.END)
+                self.spin_block.insert(0, str(block_m))
+
+                for r_id, var in self.dashboard_rule_vars.items():
+                    var.set(r_id in r_ids)
+
+                self._check_preset_match()
+                self._update_summary_label()
+            else:
+                presets = self.cfg.get_presets()
+                if presets:
+                    self._apply_preset_to_dashboard(presets[0])
+
+        if start_minimized:
+            self.withdraw()
 
         # Инициализация плавающего виджета
         self.floating_widget: Optional[FloatingPillWidget] = None
@@ -853,6 +931,26 @@ class AppBlockerGUI(tk.Tk):
                     "AppBlocker свёрнут",
                     "Приложение продолжает работать в фоне. Кликните по иконке в трее, чтобы открыть окно."
                 )
+
+    def _on_instance_signal_or_show(self):
+        """Вызывается при повторном запуске или клике по трею: обновляет сессию и показывает окно."""
+        try:
+            restored = session_controller.restore_if_active(self.cfg.get_app_rules_for_ids)
+            if restored:
+                allow_m = restored.get("allow_min", 0)
+                block_m = restored.get("block_min", 50)
+                r_ids = restored.get("rule_ids", [])
+                self.spin_allow.delete(0, tk.END)
+                self.spin_allow.insert(0, str(allow_m))
+                self.spin_block.delete(0, tk.END)
+                self.spin_block.insert(0, str(block_m))
+                for r_id, var in self.dashboard_rule_vars.items():
+                    var.set(r_id in r_ids)
+                self._check_preset_match()
+                self._update_summary_label()
+        except Exception as ex:
+            logger.debug(f"Error restoring on signal: {ex}")
+        self.show_window()
 
     def show_window(self):
         """Восстанавливает окно из трея, центрирует при необходимости и выводит на передний план."""
