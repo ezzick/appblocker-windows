@@ -589,29 +589,53 @@ _osd_class_atom = None
 
 def play_notification_sound(sound_type: str = "exclamation"):
     """
-    Воспроизводит системный звуковой сигнал Windows.
-    - 'finish' / 'success' / 'ok': аккорд завершения сессии / снятия блокировки
-    - 'block' / 'stop' / 'hand': звук включения блокировки
-    - 'warning' / 'exclamation': предупреждающий сигнал (за 1 минуту)
+    Воспроизводит четкий звуковой сигнал Windows напрямую из C:\\Windows\\Media.
+    - 'finish' / 'success' / 'ok': торжественный аккорд завершения сессии (tada.wav / chimes.wav)
+    - 'block' / 'stop' / 'hand': сигнал включения блокировки (Windows Critical Stop.wav / chord.wav)
+    - 'warning' / 'exclamation': предупреждение за 1 минуту (Windows Exclamation.wav / ding.wav)
+    - 'pop': закрытие вкладки или окна нарушителя (Windows Pop-up Blocked.wav / ding.wav)
     """
-    try:
-        if sound_type in ("finish", "success", "ok"):
-            try:
-                winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS | winsound.SND_ASYNC)
-            except Exception:
-                winsound.MessageBeep(winsound.MB_ICONASTERISK)
-        elif sound_type in ("block", "stop", "hand"):
-            try:
-                winsound.PlaySound("SystemHand", winsound.SND_ALIAS | winsound.SND_ASYNC)
-            except Exception:
-                winsound.MessageBeep(winsound.MB_ICONHAND)
-        else:
-            try:
-                winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS | winsound.SND_ASYNC)
-            except Exception:
-                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
-    except Exception as ex:
-        logger.debug(f"Failed to play notification sound ({sound_type}): {ex}")
+    def _play():
+        try:
+            media_dir = os.path.join(os.environ.get('WINDIR', r'C:\Windows'), 'Media')
+            sound_files = {
+                'finish': ['tada.wav', 'chimes.wav', 'Windows Notify System Generic.wav', 'notify.wav'],
+                'success': ['tada.wav', 'chimes.wav', 'Windows Notify System Generic.wav', 'notify.wav'],
+                'ok': ['tada.wav', 'chimes.wav', 'Windows Notify System Generic.wav', 'notify.wav'],
+                'block': ['Windows Critical Stop.wav', 'chord.wav', 'Windows Background.wav'],
+                'stop': ['Windows Critical Stop.wav', 'chord.wav', 'Windows Background.wav'],
+                'hand': ['Windows Critical Stop.wav', 'chord.wav', 'Windows Background.wav'],
+                'warning': ['Windows Exclamation.wav', 'ding.wav', 'notify.wav'],
+                'exclamation': ['Windows Exclamation.wav', 'ding.wav', 'notify.wav'],
+                'pop': ['Windows Pop-up Blocked.wav', 'ding.wav']
+            }
+
+            played = False
+            candidates = sound_files.get(sound_type, sound_files['warning'])
+            for name in candidates:
+                full_path = os.path.join(media_dir, name)
+                if os.path.exists(full_path):
+                    try:
+                        winsound.PlaySound(full_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+                        played = True
+                        break
+                    except Exception:
+                        pass
+
+            if not played:
+                if sound_type in ('finish', 'success', 'ok'):
+                    winsound.Beep(523, 100)
+                    winsound.Beep(659, 100)
+                    winsound.Beep(784, 250)
+                elif sound_type in ('block', 'stop', 'hand'):
+                    winsound.Beep(440, 300)
+                else:
+                    winsound.Beep(880, 200)
+        except Exception as ex:
+            logger.debug(f"Failed to play notification sound ({sound_type}): {ex}")
+
+    threading.Thread(target=_play, daemon=True).start()
+
 
 def _osd_thread_func(title: str, message: str, duration_sec: float, play_sound: bool, target_monitor: str = "auto", sound_type: str = "exclamation"):
     global _osd_class_atom
