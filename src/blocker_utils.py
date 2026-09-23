@@ -587,14 +587,37 @@ _GLOBAL_WNDPROC_REF = WNDPROC(_global_osd_wndproc)
 _osd_class_atom = None
 
 
-def _osd_thread_func(title: str, message: str, duration_sec: float, play_sound: bool, target_monitor: str = "auto"):
+def play_notification_sound(sound_type: str = "exclamation"):
+    """
+    Воспроизводит системный звуковой сигнал Windows.
+    - 'finish' / 'success' / 'ok': аккорд завершения сессии / снятия блокировки
+    - 'block' / 'stop' / 'hand': звук включения блокировки
+    - 'warning' / 'exclamation': предупреждающий сигнал (за 1 минуту)
+    """
+    try:
+        if sound_type in ("finish", "success", "ok"):
+            try:
+                winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS | winsound.SND_ASYNC)
+            except Exception:
+                winsound.MessageBeep(winsound.MB_ICONASTERISK)
+        elif sound_type in ("block", "stop", "hand"):
+            try:
+                winsound.PlaySound("SystemHand", winsound.SND_ALIAS | winsound.SND_ASYNC)
+            except Exception:
+                winsound.MessageBeep(winsound.MB_ICONHAND)
+        else:
+            try:
+                winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS | winsound.SND_ASYNC)
+            except Exception:
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+    except Exception as ex:
+        logger.debug(f"Failed to play notification sound ({sound_type}): {ex}")
+
+def _osd_thread_func(title: str, message: str, duration_sec: float, play_sound: bool, target_monitor: str = "auto", sound_type: str = "exclamation"):
     global _osd_class_atom
 
     if play_sound:
-        try:
-            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
-        except Exception:
-            pass
+        play_notification_sound(sound_type)
 
     hinstance = kernel32.GetModuleHandleW(None)
     class_name = "AppBlockerOSDClassV9"
@@ -1051,6 +1074,14 @@ def run_pomodoro_block_session(
 
     run_blocking_loop(rule=rule, duration_sec=block_min * 60, poll_interval_sec=1.0)
     logger.info(f"=== Session Finished: {rule.name} ===")
+    if do_alert:
+        show_osd_notification(
+            title=f"{rule.name} Blocker",
+            message=f"🎉 Блокировка {rule.name} завершена!",
+            duration_sec=7.0,
+            play_sound=True,
+            sound_type="finish"
+        )
 
 
 # ===== Универсальный контроллер фоновых сессий (для GUI) =====
@@ -1268,10 +1299,22 @@ class SessionController:
 
                 self._stop_event.wait(1.0)
 
+        was_cancelled = self._stop_event.is_set()
         self.state = SessionState.STOPPED
         clear_session_state()
         logger.info(f"=== GUI Session Finished: '{session_name}' ===")
-        if on_finish and not self._stop_event.is_set():
+
+        if do_alert and not was_cancelled:
+            show_osd_notification(
+                title=session_name,
+                message="🎉 Сессия завершена! Блокировка снята.",
+                duration_sec=7.0,
+                play_sound=True,
+                target_monitor=target_monitor,
+                sound_type="finish"
+            )
+
+        if on_finish and not was_cancelled:
             try:
                 on_finish()
             except Exception:
