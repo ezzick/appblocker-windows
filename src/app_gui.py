@@ -770,6 +770,7 @@ class AppBlockerGUI(tk.Tk):
 
         self._apply_initial_geometry()
         self.protocol("WM_DELETE_WINDOW", self._on_close_window)
+        self.bind("<Unmap>", self._on_window_unmap)
 
         self._init_styles()
         self._build_main_ui()
@@ -914,6 +915,11 @@ class AppBlockerGUI(tk.Tk):
                 pass
 
         self._center_window()
+
+    def _on_window_unmap(self, event):
+        """Перехватывает стандартное нажатие кнопки [-] (свернуть) и убирает окно в трей."""
+        if event.widget == self and self.state() == "iconic":
+            self.withdraw()
 
     def _on_close_window(self):
         """При нажатии на крестик сохраняет геометрию и сворачивает окно в системный трей."""
