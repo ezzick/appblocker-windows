@@ -636,6 +636,21 @@ class FloatingPillWidget(tk.Toplevel):
         pos = self.cfg.get_widget_position()
         x = pos.get("x", 120)
         y = pos.get("y", 120)
+
+        try:
+            SM_XVIRTUALSCREEN = 76
+            SM_YVIRTUALSCREEN = 77
+            SM_CXVIRTUALSCREEN = 78
+            SM_CYVIRTUALSCREEN = 79
+            vx = user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
+            vy = user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
+            vw = user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
+            vh = user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
+            if x < vx or x > vx + vw - 60 or y < vy or y > vy + vh - 40:
+                x, y = 120, 120
+        except Exception:
+            pass
+
         self.geometry(f"124x32+{x}+{y}")
         self.configure(bg=self.theme["border"])
 
@@ -916,10 +931,19 @@ class AppBlockerGUI(tk.Tk):
 
         self._center_window()
 
+    def _ensure_floating_widget_visible(self):
+        """Гарантирует, что плавающий виджет остаётся видимым при скрытии/сворачивании главного окна."""
+        if hasattr(self, 'floating_widget') and self.floating_widget and self.floating_widget.winfo_exists():
+            if self.cfg.get_show_floating_widget():
+                self.floating_widget.deiconify()
+                self.floating_widget.attributes("-topmost", True)
+                self.floating_widget.lift()
+
     def _on_window_unmap(self, event):
         """Перехватывает стандартное нажатие кнопки [-] (свернуть) и убирает окно в трей."""
         if event.widget == self and self.state() == "iconic":
             self.withdraw()
+            self._ensure_floating_widget_visible()
 
     def _on_close_window(self):
         """При нажатии на крестик сохраняет геометрию и сворачивает окно в системный трей."""
@@ -930,6 +954,7 @@ class AppBlockerGUI(tk.Tk):
         except Exception:
             pass
         self.withdraw()
+        self._ensure_floating_widget_visible()
         if not getattr(self, '_tray_balloon_shown', False):
             self._tray_balloon_shown = True
             if hasattr(self, 'tray') and self.tray:
@@ -1039,6 +1064,11 @@ class AppBlockerGUI(tk.Tk):
             command=self.show_window
         )
 
+        menu.add_command(
+            label="📌 Скрыть мини-виджет" if self.cfg.get_show_floating_widget() else "📌 Показать мини-виджет",
+            command=self._toggle_floating_widget_from_tray
+        )
+
         menu.add_separator()
 
         if session_controller.is_running():
@@ -1069,6 +1099,17 @@ class AppBlockerGUI(tk.Tk):
             x, y = self.winfo_pointerxy()
 
         menu.tk_popup(x, y)
+
+    def _toggle_floating_widget_from_tray(self):
+        new_val = not self.cfg.get_show_floating_widget()
+        self.cfg.set_show_floating_widget(new_val)
+        if new_val:
+            self._init_floating_widget()
+            self.floating_widget.show_widget()
+        else:
+            if self.floating_widget and self.floating_widget.winfo_exists():
+                self.floating_widget.hide_widget()
+        self._on_widget_visibility_changed()
 
     def _init_styles(self):
         style = ttk.Style(self)

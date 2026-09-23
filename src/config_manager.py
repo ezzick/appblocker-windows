@@ -161,7 +161,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "osd_duration_sec": 7,
     "target_monitor": "auto",  # "auto", "secondary", "primary"
     "window_geometry": None,
-    "show_floating_widget": False,
+    "show_floating_widget": True,
     "widget_position": {"x": 100, "y": 100},
     "enable_peek_hotkey": True,
     "rules": [asdict(r) for r in DEFAULT_RULES],
