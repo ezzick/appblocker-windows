@@ -684,25 +684,23 @@ class FloatingPillWidget(tk.Toplevel):
             pass
 
     def _on_drag_start(self, event):
-        """Аппаратное перемещение окна через Win32 WM_SYSCOMMAND (SC_DRAGMOVE) без лагов и прыжков курсора."""
+        """Запоминает точное смещение курсора относительно экрана (winfo_rootx/y) без скачков и крашей."""
         try:
-            hwnd = user32.GetParent(self.winfo_id()) or self.winfo_id()
-            user32.ReleaseCapture()
-            user32.SendMessageW(hwnd, 0x0112, 0xF012, 0)
-            self._on_drag_end(None)
+            self._drag_offset_x = event.x_root - self.winfo_rootx()
+            self._drag_offset_y = event.y_root - self.winfo_rooty()
         except Exception:
-            self._drag_start_x = event.x_root - self.winfo_x()
-            self._drag_start_y = event.y_root - self.winfo_y()
+            self._drag_offset_x = getattr(event, 'x', 20)
+            self._drag_offset_y = getattr(event, 'y', 15)
 
     def _on_drag_motion(self, event):
-        if hasattr(self, '_drag_start_x') and self._drag_start_x is not None:
-            new_x = event.x_root - self._drag_start_x
-            new_y = event.y_root - self._drag_start_y
-            w = self.winfo_width() or 140
-            h = self.winfo_height() or 34
-            self.geometry(f"{w}x{h}+{new_x}+{new_y}")
+        if getattr(self, '_drag_offset_x', None) is not None and getattr(self, '_drag_offset_y', None) is not None:
+            new_x = event.x_root - self._drag_offset_x
+            new_y = event.y_root - self._drag_offset_y
+            self.geometry(f"+{new_x}+{new_y}")
 
     def _on_drag_end(self, event):
+        self._drag_offset_x = None
+        self._drag_offset_y = None
         try:
             self.cfg.set_widget_position(self.winfo_x(), self.winfo_y())
         except Exception:
