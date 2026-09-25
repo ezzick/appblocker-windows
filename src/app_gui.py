@@ -747,6 +747,45 @@ class FloatingPillWidget(tk.Toplevel):
         else:
             self.lbl_text.config(text="☕ 00:00", fg=self.theme["fg_muted"])
 
+    def highlight_pulse(self):
+        """Привлекает внимание к микро-виджету: выводит на передний план, подсвечивает рамкой и мигает."""
+        self.deiconify()
+        self.attributes("-topmost", True)
+        self.lift()
+        self.attributes("-alpha", 1.0)
+
+        orig_text = self.lbl_text.cget("text")
+        orig_fg = self.lbl_text.cget("fg")
+
+        flash_steps = [
+            ("#f59e0b", "#fffbeb", "🎯 ВОТ ОН!"),
+            (self.theme["border"], self.theme["bg_card"], None),
+            ("#f59e0b", "#fffbeb", "⏱️ AppBlocker"),
+            (self.theme["border"], self.theme["bg_card"], None),
+            ("#f59e0b", "#fffbeb", "✨ Виджет здесь"),
+            (self.theme["border"], self.theme["bg_card"], None),
+        ]
+
+        def _step(idx):
+            if not self.winfo_exists():
+                return
+            if idx < len(flash_steps):
+                border_c, card_c, txt = flash_steps[idx]
+                self.configure(bg=border_c)
+                self.card.configure(bg=card_c)
+                self.lbl_text.configure(bg=card_c)
+                if txt:
+                    is_light = "Light" in self.theme.get("name", "")
+                    self.lbl_text.configure(text=txt, fg="#b45309" if is_light else "#fbbf24")
+                else:
+                    self.lbl_text.configure(text=orig_text, fg=orig_fg)
+                self.after(320, lambda: _step(idx + 1))
+            else:
+                self.apply_theme(self.theme)
+                self.attributes("-alpha", 0.92)
+
+        _step(0)
+
     def apply_theme(self, theme: Dict[str, str]):
         self.theme = theme
         self.configure(bg=self.theme["border"])
@@ -2200,7 +2239,16 @@ class AppBlockerGUI(tk.Tk):
             font=("Segoe UI", 9), bg=self.theme["bg_card"], fg=self.theme["fg_muted"],
             anchor="w", justify="left"
         )
-        lbl_float_desc.pack(fill="x", anchor="w", padx=16, pady=(0, 8))
+        lbl_float_desc.pack(fill="x", anchor="w", padx=16, pady=(0, 6))
+
+        btn_reset_widget = tk.Button(
+            box_peek, text="🎯 Найти и вернуть микро-виджет на экран (в центр)",
+            font=("Segoe UI", 9, "bold"),
+            bg=self.theme["bg_input"], fg=self.theme["accent"], relief="flat", cursor="hand2",
+            activebackground=self.theme["bg_card_hover"], activeforeground=self.theme["accent_hover"],
+            command=self._reset_and_highlight_floating_widget
+        )
+        btn_reset_widget.pack(anchor="w", padx=16, pady=(0, 12), ipadx=10, ipady=4)
 
         self.var_hotkey = tk.BooleanVar(value=self.cfg.get_enable_peek_hotkey())
         cb_hk = tk.Checkbutton(
@@ -2270,6 +2318,31 @@ class AppBlockerGUI(tk.Tk):
             if hasattr(self, 'floating_widget') and self.floating_widget and self.floating_widget.winfo_exists():
                 self.floating_widget.apply_theme(self.theme)
             self._rebuild_all_ui()
+
+    def _reset_and_highlight_floating_widget(self):
+        """Возвращает микро-виджет в центр экрана на передний план и подсвечивает его."""
+        self.var_settings_floating_widget.set(True)
+        if hasattr(self, 'var_floating_widget'):
+            self.var_floating_widget.set(True)
+        self.cfg.set_show_floating_widget(True)
+        self._init_floating_widget()
+
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        target_x = max(20, (screen_w - 140) // 2)
+        target_y = 80
+
+        self.floating_widget.geometry(f"140x34+{target_x}+{target_y}")
+        self.cfg.set_widget_position(target_x, target_y)
+        self.floating_widget.show_widget()
+        self.floating_widget.highlight_pulse()
+        if hasattr(self, '_on_widget_visibility_changed'):
+            self._on_widget_visibility_changed()
+        try:
+            from blocker_utils import play_notification_sound
+            play_notification_sound("pop")
+        except Exception:
+            pass
 
     def _on_toggle_floating_widget_from_settings(self):
         show = self.var_settings_floating_widget.get()
