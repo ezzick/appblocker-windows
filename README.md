@@ -21,7 +21,7 @@
 
 | Для пользователей (готовый exe) | Для разработчиков (исходный код) |
 |---|---|
-| [Скачать AppBlocker v2.1 (exe)](dist/AppBlocker_v2.1.exe) | [Исходный код (Python)](src/) |
+| [Скачать AppBlocker (exe)](https://github.com/ezzick/appblocker-windows/releases/latest/download/AppBlocker.exe) | [Исходный код (Python)](src/) |
 
 > **Релизы:** Все версии также доступны на странице [Releases](https://github.com/ezzick/appblocker-windows/releases) — там можно скачать любую сборку и посмотреть changelog.
 
@@ -30,7 +30,7 @@
 ## 🚀 Быстрый старт
 
 ### Для обычных пользователей
-1. Скачай `AppBlocker_v2.1.exe` из раздела **⬇️ Скачать** выше.
+1. Скачай `AppBlocker.exe` из раздела **⬇️ Скачать** выше.
 2. Запусти — приложение готово к работе. Ничего устанавливать не нужно.
 
 ### Для разработчиков
@@ -185,9 +185,7 @@ global AppBlockerDir := "C:\D\Projects Active\Python\AppBlocker"
 
 ; Универсальная функция запуска AppBlocker (.exe или .pyw)
 RunAppBlocker(params := "") {
-    exePath := AppBlockerDir "\dist\AppBlocker_v2.1.exe"
-    if !FileExist(exePath)
-        exePath := AppBlockerDir "\AppBlocker.exe"
+    exePath := AppBlockerDir "\dist\AppBlocker.exe"
 
     if FileExist(exePath) {
         if (params != "")
@@ -237,7 +235,6 @@ cFocusNoDistractions(ItemName, ItemPos, MyMenu) {
 
 ```
 AppBlocker/
-├── AppBlocker.exe               # Основной исполняемый файл (автономный)
 ├── AppBlocker.pyw               # Точка запуска Python-скрипта
 ├── TelegramBlock_after.pyw      # Скрипт совместимости (N мин работы -> блок)
 ├── TelegramBlock_for.pyw        # Скрипт совместимости (немедленный блок)
@@ -266,7 +263,7 @@ AppBlocker/
 │   ├── test_app_rules.py        # Тесты правил и Fail-Fast логики
 │   └── test_session_controller.py # Тесты контроллера сессий и ассетов
 ├── dist/                        # Скомпилированный .exe (PyInstaller)
-│   └── AppBlocker_v2.1.exe
+│   └── AppBlocker.exe
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -296,5 +293,5 @@ python tests/run_all_tests.py
 ```bash
 python build_exe.py
 ```
-> Готовый исполняемый файл будет сохранён в `dist/AppBlocker_v2.1.exe` и скопирован в корень проекта.
+> Готовый исполняемый файл будет сохранён в `dist/AppBlocker.exe`. Имя файла не зависит от версии — номер версии указывается в названии и теге релиза на GitHub.
 
