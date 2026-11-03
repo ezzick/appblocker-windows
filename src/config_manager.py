@@ -52,7 +52,7 @@ DEFAULT_RULES: List[RuleConfig] = [
         name="Telegram",
         enabled=True,
         process_names=["Telegram.exe"],
-        class_pattern="Telegram",
+        class_pattern=None,
         action="close_window"
     ),
     RuleConfig(
@@ -211,6 +211,8 @@ class ConfigManager:
                 r["id"] = r_id
                 if r_id == "ai_desktop" and r.get("action") == "close_window":
                     r["action"] = "minimize_window"
+                if r_id == "telegram" and r.get("class_pattern") == "Telegram":
+                    r["class_pattern"] = None
                 if r_id and r_id not in seen_rule_ids:
                     seen_rule_ids.add(r_id)
                     clean_rules.append(r)

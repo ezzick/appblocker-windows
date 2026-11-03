@@ -30,6 +30,8 @@ ahk/
 
 # Внутренние отчеты разработки (агенты)
 .agents/
+.claude/
+.docs/
 
 # Сборка и дистрибутивы (PyInstaller, Nuitka)
 build/
@@ -63,6 +65,7 @@ session_state.json
 .pytest_cache/
 .coverage
 htmlcov/
+tmp/
 
 # Системные файлы ОС
 Thumbs.db

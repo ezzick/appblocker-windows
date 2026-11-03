@@ -18,6 +18,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
+from version import __version__, APP_VERSION, APP_TITLE
 from config_manager import ConfigManager, RuleConfig, PresetConfig, is_autostart_enabled, set_autostart
 from blocker_utils import (
     session_controller,
@@ -41,7 +42,7 @@ user32 = ctypes.windll.user32
 
 ERROR_ALREADY_EXISTS = 183
 SW_RESTORE = 9
-WINDOW_TITLE = "AppBlocker - Управление фокусом"
+WINDOW_TITLE = APP_TITLE
 
 _SINGLE_INSTANCE_MUTEX = None
 
@@ -51,58 +52,89 @@ def ensure_single_instance(cli_session_args=None):
 
     _SINGLE_INSTANCE_MUTEX = kernel32.CreateMutexW(None, True, "Local\\AppBlocker_SingleInstance_Mutex_v1")
     if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+        should_show_gui = getattr(cli_session_args, 'gui', False) if cli_session_args else True
         if cli_session_args:
             try:
-                from blocker_utils import save_session_state, show_osd_notification
+                from blocker_utils import load_session_state, save_session_state, show_osd_notification
                 from config_manager import ConfigManager
                 cfg = ConfigManager()
-                preset_id = getattr(cli_session_args, 'preset', None)
-                allow_m = getattr(cli_session_args, 'allow_min', None)
-                block_m = getattr(cli_session_args, 'block_min', None) or getattr(cli_session_args, 'pos_block_min', None)
-                rule_ids = getattr(cli_session_args, 'rules', None)
-                if rule_ids:
-                    rule_ids = [r.strip() for r in rule_ids.split(",") if r.strip()]
 
-                session_name = "Фокус-сессия (CLI)"
-                if preset_id:
-                    preset = cfg.get_preset_by_id(preset_id)
-                    if preset:
-                        allow_m = preset.allow_min
-                        block_m = preset.block_min
-                        rule_ids = preset.rule_ids
-                        session_name = preset.name
-
-                allow_m = int(allow_m or 0)
-                block_m = int(block_m or 25)
-                rule_ids = rule_ids or [r.id for r in cfg.get_rules() if r.enabled]
-
+                existing_state = load_session_state()
                 now = time.time()
-                allow_end = now + (allow_m * 60 if allow_m > 0 else 0)
-                block_end = allow_end + (block_m * 60)
-                state_data = {
-                    "session_name": session_name,
-                    "allow_min": allow_m,
-                    "block_min": block_m,
-                    "rule_ids": rule_ids,
-                    "allow_end_time": allow_end,
-                    "block_end_time": block_end,
-                    "do_alert": True,
-                    "target_monitor": cfg.get_setting("target_monitor", "auto"),
-                    "created_at": now
-                }
-                save_session_state(state_data)
-                show_osd_notification(
-                    title="▶ Сессия запущена",
-                    message=f"{session_name}\n{allow_m} мин работа ➔ {block_m} мин фокус",
-                    duration_sec=4.0,
-                    play_sound=True
-                )
+
+                # РџСЂРѕРІРµСЂСЏРµРј, Р°РєС‚РёРІРЅР° Р»Рё СѓР¶Рµ СЃРµСЃСЃРёСЏ
+                if existing_state and now < existing_state.get("block_end_time", 0):
+                    sess_name = existing_state.get("session_name", "РЎРµСЃСЃРёСЏ")
+                    allow_end = existing_state.get("allow_end_time", 0)
+                    block_end = existing_state.get("block_end_time", 0)
+                    if now < allow_end:
+                        rem_sec = int(allow_end - now)
+                        rem_m = rem_sec // 60
+                        rem_s = rem_sec % 60
+                        show_osd_notification(
+                            title="в–¶ РЎРµСЃСЃРёСЏ Р°РєС‚РёРІРЅР°",
+                            message=f"{sess_name}\nРћСЃС‚Р°Р»РѕСЃСЊ СЂР°Р±РѕС‚С‹: {rem_m:02d}:{rem_s:02d}",
+                            duration_sec=3.5,
+                            play_sound=False
+                        )
+                    else:
+                        rem_sec = int(block_end - now)
+                        rem_m = rem_sec // 60
+                        rem_s = rem_sec % 60
+                        show_osd_notification(
+                            title="вЏ№ РџРµСЂРёРѕРґ Р±Р»РѕРєРёСЂРѕРІРєРё",
+                            message=f"{sess_name}\nРћСЃС‚Р°Р»РѕСЃСЊ Р±Р»РѕРєРёСЂРѕРІРєРё: {rem_m:02d}:{rem_s:02d}",
+                            duration_sec=4.0,
+                            play_sound=True
+                        )
+                else:
+                    preset_id = getattr(cli_session_args, 'preset', None)
+                    allow_m = getattr(cli_session_args, 'allow_min', None)
+                    block_m = getattr(cli_session_args, 'block_min', None) or getattr(cli_session_args, 'pos_block_min', None)
+                    rule_ids = getattr(cli_session_args, 'rules', None)
+                    if rule_ids:
+                        rule_ids = [r.strip() for r in rule_ids.split(",") if r.strip()]
+
+                    session_name = "РЎРµСЃСЃРёСЏ (CLI)"
+                    if preset_id:
+                        preset = cfg.get_preset_by_id(preset_id)
+                        if preset:
+                            allow_m = preset.allow_min
+                            block_m = preset.block_min
+                            rule_ids = preset.rule_ids
+                            session_name = preset.name
+
+                    allow_m = int(allow_m or 0)
+                    block_m = int(block_m or 25)
+                    rule_ids = rule_ids or [r.id for r in cfg.get_rules() if r.enabled]
+
+                    allow_end = now + (allow_m * 60 if allow_m > 0 else 0)
+                    block_end = allow_end + (block_m * 60)
+                    state_data = {
+                        "session_name": session_name,
+                        "allow_min": allow_m,
+                        "block_min": block_m,
+                        "rule_ids": rule_ids,
+                        "allow_end_time": allow_end,
+                        "block_end_time": block_end,
+                        "do_alert": True,
+                        "target_monitor": cfg.get_setting("target_monitor", "auto"),
+                        "created_at": now
+                    }
+                    save_session_state(state_data)
+                    show_osd_notification(
+                        title="в–¶ РќРѕРІР°СЏ СЃРµСЃСЃРёСЏ",
+                        message=f"{session_name}\n{allow_m} РјРёРЅ. СЂР°Р±РѕС‚С‹ в†’ {block_m} РјРёРЅ. Р±Р»РѕРєРёСЂРѕРІРєРё",
+                        duration_sec=4.0,
+                        play_sound=True
+                    )
             except Exception as ex:
                 logger.error(f"Error handling CLI session for running instance: {ex}")
 
         msg_id = user32.RegisterWindowMessageW("AppBlocker_Show_Instance")
         HWND_BROADCAST = 0xFFFF
-        user32.PostMessageW(HWND_BROADCAST, msg_id, 0, 0)
+        wparam_val = 1 if should_show_gui else 0
+        user32.PostMessageW(HWND_BROADCAST, msg_id, wparam_val, 0)
         sys.exit(0)
 
 
@@ -374,6 +406,8 @@ class RuleDialog(tk.Toplevel):
 
         rule_id = self.rule.id if self.rule else f"rule_{int(time.time())}"
         pattern = self.rule.class_pattern if self.rule else None
+        if pattern == "Telegram":
+            pattern = None
 
         updated_rule = RuleConfig(
             id=rule_id,
@@ -816,6 +850,8 @@ class AppBlockerGUI(tk.Tk):
         start_minimized: bool = False
     ):
         super().__init__()
+        if start_minimized:
+            self.withdraw()
         self.title(WINDOW_TITLE)
         self.minsize(620, 560)
 
@@ -852,7 +888,7 @@ class AppBlockerGUI(tk.Tk):
 
         # Инициализация нативного системного трея Windows
         self.tray = WindowsTrayIcon(
-            on_click=lambda: self.after(0, self._on_instance_signal_or_show),
+            on_click=lambda wparam=1: self.after(0, lambda: self._on_instance_signal_or_show(show_gui=(wparam == 1))),
             on_right_click=lambda: self.after(0, self._show_tray_context_menu),
             tooltip="AppBlocker - Управление фокусом",
             icon_path=self.icon_path if os.path.exists(self.icon_path) else None
@@ -860,7 +896,25 @@ class AppBlockerGUI(tk.Tk):
         self.tray.start()
 
         # Запуск сессии по CLI-параметрам или восстановление сохраненной
-        if start_preset_id:
+        # Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ СЃРѕС…СЂР°РЅРµРЅРЅРѕР№ СЃРµСЃСЃРёРё (DRY) РёР»Рё Р·Р°РїСѓСЃРє РЅРѕРІРѕР№ РїРѕ CLI-РїР°СЂР°РјРµС‚СЂР°Рј
+        restored = session_controller.restore_if_active(self.cfg.get_app_rules_for_ids)
+        if restored:
+            allow_m = restored.get("allow_min", 0)
+            block_m = restored.get("block_min", 50)
+            r_ids = restored.get("rule_ids", [])
+
+            self.spin_allow.delete(0, tk.END)
+            self.spin_allow.insert(0, str(allow_m))
+
+            self.spin_block.delete(0, tk.END)
+            self.spin_block.insert(0, str(block_m))
+
+            for r_id, var in self.dashboard_rule_vars.items():
+                var.set(r_id in r_ids)
+
+            self._check_preset_match()
+            self._update_summary_label()
+        elif start_preset_id:
             preset = self.cfg.get_preset_by_id(start_preset_id)
             if preset:
                 self._apply_preset_to_dashboard(preset)
@@ -879,27 +933,9 @@ class AppBlockerGUI(tk.Tk):
             self._update_summary_label()
             self.after(200, self._on_toggle_session)
         else:
-            restored = session_controller.restore_if_active(self.cfg.get_app_rules_for_ids)
-            if restored:
-                allow_m = restored.get("allow_min", 0)
-                block_m = restored.get("block_min", 50)
-                r_ids = restored.get("rule_ids", [])
-
-                self.spin_allow.delete(0, tk.END)
-                self.spin_allow.insert(0, str(allow_m))
-
-                self.spin_block.delete(0, tk.END)
-                self.spin_block.insert(0, str(block_m))
-
-                for r_id, var in self.dashboard_rule_vars.items():
-                    var.set(r_id in r_ids)
-
-                self._check_preset_match()
-                self._update_summary_label()
-            else:
-                presets = self.cfg.get_presets()
-                if presets:
-                    self._apply_preset_to_dashboard(presets[0])
+            presets = self.cfg.get_presets()
+            if presets:
+                self._apply_preset_to_dashboard(presets[0])
 
         if start_minimized:
             self.withdraw()
@@ -1013,7 +1049,7 @@ class AppBlockerGUI(tk.Tk):
                     "Приложение продолжает работать в фоне. Кликните по иконке в трее, чтобы открыть окно."
                 )
 
-    def _on_instance_signal_or_show(self):
+    def _on_instance_signal_or_show(self, show_gui: bool = True):
         """Вызывается при повторном запуске или клике по трею: обновляет сессию и показывает окно."""
         try:
             restored = session_controller.restore_if_active(self.cfg.get_app_rules_for_ids)
@@ -1031,7 +1067,8 @@ class AppBlockerGUI(tk.Tk):
                 self._update_summary_label()
         except Exception as ex:
             logger.debug(f"Error restoring on signal: {ex}")
-        self.show_window()
+        if show_gui:
+            self.show_window()
 
     def show_window(self):
         """Восстанавливает окно из трея, центрирует при необходимости и выводит на передний план."""
@@ -1789,9 +1826,9 @@ class AppBlockerGUI(tk.Tk):
         is_running = (state == SessionState.WORK_PHASE or state == SessionState.BLOCK_PHASE)
         if is_running:
             if state == SessionState.WORK_PHASE:
-                self.title(f"⏳ {m:02d}:{s:02d} | До блокировки — AppBlocker")
+                self.title(f"⏳ {m:02d}:{s:02d} | До блокировки — AppBlocker v{APP_VERSION}")
             elif state == SessionState.BLOCK_PHASE:
-                self.title(f"🔒 {m:02d}:{s:02d} | Блокировка — AppBlocker")
+                self.title(f"🔒 {m:02d}:{s:02d} | Блокировка — AppBlocker v{APP_VERSION}")
         else:
             self.title(WINDOW_TITLE)
 

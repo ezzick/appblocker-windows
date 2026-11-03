@@ -12,12 +12,16 @@ if hasattr(sys.stderr, 'reconfigure'):
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(PROJECT_ROOT, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+
+from version import APP_VERSION
 ENTRY_POINT = os.path.join(SRC_DIR, "AppBlocker.pyw")
 ICON_PATH = os.path.join(PROJECT_ROOT, "assets", "app_icon.ico")
 ASSETS_DIR = os.path.join(PROJECT_ROOT, "assets")
 DIST_DIR = os.path.join(PROJECT_ROOT, "dist")
 BUILD_DIR = os.path.join(PROJECT_ROOT, "build")
-APP_VERSION = "2.1"
+# APP_VERSION импортируется из src.version
 # Имя без версии: ссылка releases/latest/download/AppBlocker.exe ведёт на свежую сборку
 OUTPUT_EXE_NAME = "AppBlocker"
 

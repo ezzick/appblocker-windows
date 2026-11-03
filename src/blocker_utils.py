@@ -1,4 +1,4 @@
-"""
+﻿"""
 blocker_utils.py - Универсальный Win32 API движок AppBlocker.
 
 Функционал:
@@ -331,7 +331,7 @@ user32.RegisterWindowMessageW.restype = wintypes.UINT
 user32.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
 user32.GetCursorPos.restype = wintypes.BOOL
 
-user32.EnumDisplayMonitors.argtypes = [wintypes.HDC, ctypes.POINTER(RECT), MONITORENUMPROC, wintypes.LPARAM]
+user32.EnumDisplayMonitors.argtypes = [wintypes.HDC, ctypes.c_void_p, ctypes.c_void_p, wintypes.LPARAM]
 user32.EnumDisplayMonitors.restype = wintypes.BOOL
 
 user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFO)]
@@ -410,16 +410,6 @@ def save_session_state(state_data: Dict[str, Any]):
 
 
 def load_session_state() -> Optional[Dict[str, Any]]:
-    # Авто-миграция старого файла состояния из папки скрипта при его наличии
-    if not os.path.exists(SESSION_STATE_FILE):
-        old_state_file = os.path.join(SCRIPT_DIR, "session_state.json")
-        if os.path.exists(old_state_file):
-            try:
-                shutil.copy2(old_state_file, SESSION_STATE_FILE)
-                logger.info(f"Мигрирован файл состояния сессии из {old_state_file} в {SESSION_STATE_FILE}")
-            except Exception as ex:
-                logger.debug(f"Не удалось мигрировать старое состояние сессии: {ex}")
-
     if not os.path.exists(SESSION_STATE_FILE):
         return None
     try:
@@ -434,12 +424,8 @@ def clear_session_state():
     try:
         if os.path.exists(SESSION_STATE_FILE):
             os.remove(SESSION_STATE_FILE)
-        old_state_file = os.path.join(SCRIPT_DIR, "session_state.json")
-        if os.path.exists(old_state_file):
-            os.remove(old_state_file)
     except Exception as ex:
         logger.debug(f"Failed to clear session state: {ex}")
-
 
 # ===== Управление темой OSD =====
 
@@ -475,7 +461,7 @@ def get_target_monitor_work_area(target_mode: str = "auto") -> RECT:
         return True
 
     cb = MONITORENUMPROC(enum_mon_proc)
-    user32.EnumDisplayMonitors(0, None, cb, 0)
+    user32.EnumDisplayMonitors(None, None, ctypes.cast(cb, ctypes.c_void_p), 0)
 
     if not monitors:
         sw = user32.GetSystemMetrics(SM_CXSCREEN)
@@ -1491,15 +1477,14 @@ class WindowsTrayIcon:
                 elif msg == WM_SHOW_APPBLOCKER:
                     if self.on_click:
                         try:
-                            self.on_click()
+                            import inspect
+                            sig = inspect.signature(self.on_click)
+                            if len(sig.parameters) > 0:
+                                self.on_click(wparam)
+                            else:
+                                self.on_click()
                         except Exception as ex:
                             logger.error(f"Error in show callback: {ex}")
-                    return 0
-                elif msg == WM_DESTROY:
-                    try:
-                        user32.PostQuitMessage(0)
-                    except Exception:
-                        pass
                     return 0
 
                 return user32.DefWindowProcW(hwnd, msg, wparam, lparam)

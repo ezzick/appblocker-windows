@@ -1,34 +1,54 @@
-import ctypes
-from ctypes import wintypes
+"""
+Тесты мониторинга процессов и окон Win32 (Monitors).
+"""
+import os
+import sys
+import unittest
 
-user32 = ctypes.windll.user32
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-class RECT(ctypes.Structure):
-    _fields_ = [('left', ctypes.c_long), ('top', ctypes.c_long), ('right', ctypes.c_long), ('bottom', ctypes.c_long)]
+from src.blocker_utils import (
+    get_process_name,
+    get_window_text,
+    get_window_class,
+    get_running_windows_list
+)
 
-class MONITORINFO(ctypes.Structure):
-    _fields_ = [
-        ('cbSize', wintypes.DWORD),
-        ('rcMonitor', RECT),
-        ('rcWork', RECT),
-        ('dwFlags', wintypes.DWORD)
-    ]
 
-MONITORENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HMONITOR, wintypes.HDC, ctypes.POINTER(RECT), wintypes.LPARAM)
+class TestMonitors(unittest.TestCase):
+    """Набор тестов для проверки системных функций мониторинга окон."""
 
-monitors = []
-def enum_proc(hMon, hdc, lprc, data):
-    mi = MONITORINFO()
-    mi.cbSize = ctypes.sizeof(MONITORINFO)
-    if user32.GetMonitorInfoW(hMon, ctypes.byref(mi)):
-        r = mi.rcWork
-        monitors.append((r.left, r.top, r.right, r.bottom, mi.dwFlags))
-    return True
+    def test_get_running_windows_list(self):
+        """Проверка получения списка запущенных окон."""
+        windows = get_running_windows_list()
+        self.assertIsInstance(windows, list)
+        if windows:
+            first = windows[0]
+            self.assertIn("hwnd", first)
+            self.assertIn("title", first)
+            self.assertIn("process_name", first)
+            self.assertIn("class_name", first)
 
-if __name__ == '__main__':
-    user32.EnumDisplayMonitors.argtypes = [wintypes.HDC, ctypes.POINTER(RECT), MONITORENUMPROC, wintypes.LPARAM]
-    user32.EnumDisplayMonitors.restype = wintypes.BOOL
-    user32.EnumDisplayMonitors(0, None, MONITORENUMPROC(enum_proc), 0)
-    print("Detected monitors:", len(monitors))
-    for i, m in enumerate(monitors):
-        print(f"Monitor {i+1}: Left={m[0]}, Top={m[1]}, Right={m[2]}, Bottom={m[3]}, Flags={m[4]}")
+    def test_query_functions_with_invalid_hwnd(self):
+        """Проверка устойчивости функций к невалидным дескрипторам hwnd."""
+        proc = get_process_name(0)
+        self.assertEqual(proc, "")
+        title = get_window_text(0)
+        self.assertEqual(title, "")
+        cls = get_window_class(0)
+        self.assertEqual(cls, "")
+
+
+def run_tests() -> bool:
+    """Точка входа для запуска тестов модуля."""
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestMonitors)
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    return result.wasSuccessful()
+
+
+if __name__ == "__main__":
+    success = run_tests()
+    sys.exit(0 if success else 1)

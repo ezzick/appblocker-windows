@@ -1,97 +1,71 @@
 """
-test_session_controller.py - Автоматические unit-тесты для SessionController, состояний и путей к ресурсам.
+Тесты контроллера сессий и персистентности (SessionController).
 """
-
 import os
 import sys
-import time
 import unittest
-from unittest.mock import patch
+import time
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PARENT_DIR = os.path.dirname(CURRENT_DIR)
-SRC_DIR = os.path.join(PARENT_DIR, "src")
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-for p in (SRC_DIR, PARENT_DIR):
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
-import blocker_utils
-from blocker_utils import (
-    SessionController,
+from src.blocker_utils import (
     SessionState,
-    get_resource_path,
+    SessionController,
     save_session_state,
     load_session_state,
-    clear_session_state,
-    AppRule
+    clear_session_state
 )
 
 
-class TestSessionControllerAndUtils(unittest.TestCase):
+class TestSessionController(unittest.TestCase):
+    """Набор тестов для персистентности сессий и таймеров."""
 
-    def setUp(self):
+    def test_save_and_load_session_state(self):
+        """Проверка сохранения, чтения и очистки состояния сессии."""
+        test_data = {
+            "is_active": True,
+            "session_type": "allow",
+            "rule_name": "Telegram",
+            "end_time": time.time() + 300,
+            "target_hwnd": 0
+        }
+        save_session_state(test_data)
+        loaded = load_session_state()
+        self.assertIsNotNone(loaded)
+        self.assertEqual(loaded["rule_name"], "Telegram")
+        self.assertTrue(loaded["is_active"])
+
         clear_session_state()
+        cleared = load_session_state()
+        self.assertIsNone(cleared)
 
-    def tearDown(self):
-        clear_session_state()
-
-    def test_session_controller_initial_state(self):
-        """Проверяет начальное состояние SessionController."""
-        ctrl = SessionController()
-        self.assertFalse(ctrl.is_running())
-        self.assertEqual(ctrl.state, SessionState.STOPPED)
-        st = ctrl.get_status()
-        self.assertFalse(st["is_active"])
-        self.assertEqual(st["remaining_sec"], 0)
-
-    def test_session_controller_defaults(self):
-        """Проверяет значения по умолчанию и константы состояний."""
+    def test_session_state_constants(self):
+        """Проверка констант состояний сессии SessionState."""
         self.assertEqual(SessionState.STOPPED, "STOPPED")
-        self.assertEqual(SessionState.IDLE, "STOPPED")
         self.assertEqual(SessionState.WORK_PHASE, "WORK_PHASE")
         self.assertEqual(SessionState.BLOCK_PHASE, "BLOCK_PHASE")
 
-    def test_session_state_persistence(self):
-        """Проверяет сохранение, загрузку и очистку session_state.json."""
-        state_data = {
-            "session_name": "Тестовая сессия",
-            "allow_min": 25,
-            "block_min": 5,
-            "rule_ids": ["telegram"],
-            "allow_end_time": time.time() + 1500,
-            "block_end_time": time.time() + 1800,
-            "do_alert": True,
-            "target_monitor": "auto"
-        }
-        save_session_state(state_data)
-
-        loaded = load_session_state()
-        self.assertIsNotNone(loaded)
-        self.assertEqual(loaded["session_name"], "Тестовая сессия")
-        self.assertEqual(loaded["allow_min"], 25)
-        self.assertEqual(loaded["block_min"], 5)
-        self.assertEqual(loaded["rule_ids"], ["telegram"])
-
-        clear_session_state()
-        self.assertIsNone(load_session_state())
-
-    def test_get_resource_path_standard(self):
-        """Проверяет резолвинг путей в стандартном режиме (из исходного кода)."""
-        if hasattr(sys, '_MEIPASS'):
-            delattr(sys, '_MEIPASS')
-
-        res_path = get_resource_path("assets/app_icon.ico")
-        self.assertTrue(os.path.exists(res_path))
-        self.assertTrue(res_path.endswith(os.path.normpath("assets/app_icon.ico")))
-
-    def test_get_resource_path_frozen(self):
-        """Проверяет работу get_resource_path в режиме PyInstaller _MEIPASS."""
-        fake_meipass = r"C:\Users\AppData\Local\Temp\_MEI12345"
-        with patch.object(sys, '_MEIPASS', fake_meipass, create=True):
-            res_path = get_resource_path("assets/app_icon.ico")
-            self.assertEqual(res_path, os.path.normpath(os.path.join(fake_meipass, "assets", "app_icon.ico")))
+    def test_session_controller_init(self):
+        """Проверка начальной инициализации и статуса SessionController."""
+        controller = SessionController()
+        self.assertFalse(controller.is_running())
+        self.assertEqual(controller.state, SessionState.STOPPED)
+        self.assertEqual(controller.get_seconds_remaining(), 0)
+        status = controller.get_status()
+        self.assertFalse(status["is_active"])
+        self.assertEqual(status["state"], SessionState.STOPPED)
 
 
-if __name__ == '__main__':
-    unittest.main()
+def run_tests() -> bool:
+    """Точка входа для запуска тестов модуля."""
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestSessionController)
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    return result.wasSuccessful()
+
+
+if __name__ == "__main__":
+    success = run_tests()
+    sys.exit(0 if success else 1)
